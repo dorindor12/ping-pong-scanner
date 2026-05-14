@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Scanner | Ping-Pong</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .tabs {
+            display: flex;
+            gap: 15px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background-color: #222;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .tab.active {
+            background-color: #00ffcc;
+            color: #000;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #333;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #1a1a1a;
+            color: #888;
+        }
+        .status {
+            font-size: 0.8em;
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="tabs">
+            <div class="tab">Общий поиск</div>
+            <div class="tab active">Ping-Pong</div>
+            <div class="tab">Плотности</div>
+        </div>
+        <div class="status">STATUS: [SYSTEM_OFFLINE]</div>
+    </div>
+
+    <h2>Активные ситуации "Ping-Pong"</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Тикер</th>
+                <th>Спред (%)</th>
+                <th>Покупка (Низ)</th>
+                <th>Продажа (Верх)</th>
+                <th>Касаний</th>
+                <th>Объем в стенках ($)</th>
+            </tr>
+        </thead>
+        <tbody id="data-table">
+            <tr>
+                <td>CHILLHOUSE/USDT</td>
+                <td>8.5%</td>
+                <td>0.02428</td>
+                <td>0.02679</td>
+                <td>6</td>
+                <td>$ 1,200</td>
+            </tr>
+            <tr>
+                <td>WIFI/USDT</td>
+                <td>5.2%</td>
+                <td>0.00362</td>
+                <td>0.00384</td>
+                <td>4</td>
+                <td>$ 850</td>
+            </tr>
+        </tbody>
+    </table>
+
+</body>
+</html>
