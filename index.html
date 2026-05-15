@@ -50,6 +50,7 @@
         .status {
             font-size: 0.8em;
             color: #ff4444;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -61,7 +62,7 @@
             <div class="tab active">Ping-Pong</div>
             <div class="tab">Плотности</div>
         </div>
-        <div class="status">STATUS: [SYSTEM_OFFLINE]</div>
+        <div class="status" id="api-status">STATUS: [CONNECTING_TO_SERVER...]</div>
     </div>
 
     <h2>Активные ситуации "Ping-Pong"</h2>
@@ -78,24 +79,55 @@
             </tr>
         </thead>
         <tbody id="data-table">
-            <tr>
-                <td>CHILLHOUSE/USDT</td>
-                <td>8.5%</td>
-                <td>0.02428</td>
-                <td>0.02679</td>
-                <td>6</td>
-                <td>$ 1,200</td>
-            </tr>
-            <tr>
-                <td>WIFI/USDT</td>
-                <td>5.2%</td>
-                <td>0.00362</td>
-                <td>0.00384</td>
-                <td>4</td>
-                <td>$ 850</td>
-            </tr>
-        </tbody>
+            </tbody>
     </table>
 
+    <script>
+        // Та самая ссылка на твой сервер Render
+        const API_URL = "https://ping-pong-backend-yhro.onrender.com/api/ping-pong";
+
+        async function updateData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                const tableBody = document.getElementById('data-table');
+                const statusText = document.getElementById('api-status');
+                
+                // Очищаем таблицу перед новым заполнением
+                tableBody.innerHTML = '';
+                
+                // Вставляем каждую монету из базы Render
+                data.forEach(row => {
+                    tableBody.innerHTML += `
+                        <tr>
+                            <td>${row.ticker}</td>
+                            <td>${row.spread}</td>
+                            <td>${row.low}</td>
+                            <td>${row.high}</td>
+                            <td>${row.hits}</td>
+                            <td>${row.vol}</td>
+                        </tr>
+                    `;
+                });
+                
+                // Зажигаем зеленый статус
+                statusText.innerText = "STATUS: [SYSTEM_ONLINE]";
+                statusText.style.color = "#00ffcc";
+                
+            } catch (error) {
+                // Если сервер уснул или упал, зажигаем красный
+                console.error("Ошибка API:", error);
+                const statusText = document.getElementById('api-status');
+                statusText.innerText = "STATUS: [CONNECTION_ERROR]";
+                statusText.style.color = "#ff4444";
+            }
+        }
+
+        // Запускаем сразу при загрузке страницы
+        updateData();
+        // И повторяем каждые 5 секунд
+        setInterval(updateData, 5000);
+    </script>
 </body>
 </html>
