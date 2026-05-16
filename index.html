@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto Scanner | Ping-Pong</title>
+    <title>Crypto Scanner | Trading Tools</title>
     <style>
         body {
             background-color: #121212;
@@ -30,10 +30,14 @@
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
+            transition: 0.2s;
         }
         .tab.active {
             background-color: #00ffcc;
             color: #000;
+        }
+        .tab:hover:not(.active) {
+            background-color: #333;
         }
         .controls {
             display: flex;
@@ -73,59 +77,73 @@
             color: #ff4444;
             font-weight: bold;
         }
-        /* Классы подсветки для разных уровней спреда */
-        .row-level-1 { background-color: rgba(0, 255, 204, 0.1); color: #00ffcc; font-weight: bold; } /* >3% Зеленый */
-        .row-level-2 { background-color: rgba(255, 255, 0, 0.1); color: #ffff00; font-weight: bold; }   /* >5% Желтый */
-        .row-level-3 { background-color: rgba(255, 165, 0, 0.1); color: #ffa500; font-weight: bold; }   /* >10% Оранжевый */
-        .row-level-4 { background-color: rgba(255, 68, 68, 0.15); color: #ff4444; font-weight: bold; }  /* >15% Красный */
+        
+        /* Подсветка Ping-Pong */
+        .row-level-1 { background-color: rgba(0, 255, 204, 0.1); color: #00ffcc; font-weight: bold; }
+        .row-level-2 { background-color: rgba(255, 255, 0, 0.1); color: #ffff00; font-weight: bold; } 
+        .row-level-3 { background-color: rgba(255, 165, 0, 0.1); color: #ffa500; font-weight: bold; } 
+        .row-level-4 { background-color: rgba(255, 68, 68, 0.15); color: #ff4444; font-weight: bold; }
+        
+        /* Подсветка Плотностей */
+        .type-long { color: #00ffcc; font-weight: bold; }
+        .type-short { color: #ff4444; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div class="tabs">
-            <div class="tab">Общий поиск</div>
-            <div class="tab active">Ping-Pong</div>
-            <div class="tab">Плотности</div>
+            <div class="tab" id="tab-general">Общий поиск</div>
+            <div class="tab active" id="tab-pingpong">Ping-Pong</div>
+            <div class="tab" id="tab-densities">Плотности</div>
         </div>
         <div class="controls">
-            <button id="sound-toggle" class="sound-btn">🔕 Звук ВЫКЛ</button>
+            <button id="sound-toggle" class="sound-btn">🔕 Звук ВКЛ</button>
             <div class="status" id="api-status">STATUS: [CONNECTING...]</div>
         </div>
     </div>
 
-    <h2>Активные ситуации "Ping-Pong"</h2>
+    <h2 id="page-title">Активные ситуации "Ping-Pong"</h2>
     
     <table>
-        <thead>
-            <tr>
-                <th>Тикер</th>
-                <th>Спред (%)</th>
-                <th>Покупка (Низ)</th>
-                <th>Продажа (Верх)</th>
-                <th>Сделок (1м / 5м / 15м)</th>
-                <th>Объем в стенках ($)</th>
-            </tr>
-        </thead>
+        <thead id="table-head">
+            </thead>
         <tbody id="data-table">
             </tbody>
     </table>
 
     <script>
-        const API_URL = "https://ping-pong-backend-yhro.onrender.com/api/ping-pong";
+        const BASE_URL = "https://ping-pong-backend-yhro.onrender.com/api";
+        let currentMode = "pingpong"; // pingpong | densities
         
-        // --- СИСТЕМА ЗВУКА ---
-        let soundEnabled = false;
+        // --- УПРАВЛЕНИЕ ВКЛАДКАМИ ---
+        document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
+        document.getElementById('tab-densities').addEventListener('click', (e) => switchTab('densities', e.target));
+        
+        function switchTab(mode, element) {
+            currentMode = mode;
+            // Убираем класс active у всех
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            // Вешаем на нажатую
+            element.classList.add('active');
+            
+            // Сразу обновляем таблицу (очищаем и грузим новые)
+            document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных...</td></tr>';
+            updateData();
+        }
+
+        // --- СИСТЕМА ЗВУКА (только для Ping-Pong) ---
+        let soundEnabled = true; 
         let audioCtx = null;
-        let notifiedCoins = {}; // Память для анти-спама
+        let notifiedCoins = {};
 
         const soundBtn = document.getElementById('sound-toggle');
+        soundBtn.classList.add('on'); // По умолчанию ВКЛ
         soundBtn.addEventListener('click', () => {
             soundEnabled = !soundEnabled;
             if (soundEnabled) {
                 soundBtn.innerText = "🔔 Звук ВКЛ";
                 soundBtn.classList.add('on');
-                // Инициализация аудио-контекста по клику пользователя (правило браузеров)
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             } else {
                 soundBtn.innerText = "🔕 Звук ВЫКЛ";
@@ -133,38 +151,23 @@
             }
         });
 
-        // Синтезатор звуков
         function playAlertSound(level) {
             if (!soundEnabled || !audioCtx) return;
-
             const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
-            
             osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
             
-            let frequency = 440;
-            let type = 'sine';
-            let duration = 0.2;
-            let volume = 0.1;
-
-            if (level === 1) { // >3% Зеленый
-                frequency = 600; type = 'sine'; duration = 0.15;
-            } else if (level === 2) { // >5% Желтый
-                frequency = 800; type = 'triangle'; duration = 0.25; volume = 0.15;
-            } else if (level === 3) { // >10% Оранжевый
-                frequency = 1000; type = 'square'; duration = 0.35; volume = 0.2;
-            } else if (level === 4) { // >15% Красный
-                frequency = 1500; type = 'sawtooth'; duration = 0.5; volume = 0.3;
-            }
+            let frequency = 440; let type = 'sine'; let duration = 0.2; let volume = 0.1;
+            if (level === 1) { frequency = 600; type = 'sine'; duration = 0.15; } 
+            else if (level === 2) { frequency = 800; type = 'triangle'; duration = 0.25; volume = 0.15; } 
+            else if (level === 3) { frequency = 1000; type = 'square'; duration = 0.35; volume = 0.2; } 
+            else if (level === 4) { frequency = 1500; type = 'sawtooth'; duration = 0.5; volume = 0.3; }
 
             osc.type = type;
             osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
             gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-            
-            // Затухание звука
             gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            
             osc.start();
             osc.stop(audioCtx.currentTime + duration);
         }
@@ -172,64 +175,103 @@
         // --- ЛОГИКА ОБНОВЛЕНИЯ ДАННЫХ ---
         async function updateData() {
             try {
+                // Инициализируем аудио при первом успешном ответе (если включено)
+                if (soundEnabled && !audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
                 const timestamp = new Date().getTime();
-                const response = await fetch(`${API_URL}?t=${timestamp}`);
+                const targetEndpoint = currentMode === "pingpong" ? "/ping-pong" : "/densities";
+                const response = await fetch(`${BASE_URL}${targetEndpoint}?t=${timestamp}`);
                 
                 if (!response.ok) throw new Error("Сервер не ответил");
                 
                 const data = await response.json();
+                
+                const title = document.getElementById('page-title');
+                const tableHead = document.getElementById('table-head');
                 const tableBody = document.getElementById('data-table');
+                
                 tableBody.innerHTML = '';
                 
-                let currentScanCoins = new Set();
-                let highestAlertLevel = 0;
-
-                data.forEach(row => {
-                    let trClass = "";
-                    let level = 0;
+                // Рендер для PING-PONG
+                if (currentMode === "pingpong") {
+                    title.innerText = 'Активные ситуации "Ping-Pong"';
+                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем в стенках ($)</th></tr>`;
                     
-                    // Парсим спред для цвета и звука (только если это не системное сообщение)
-                    if (row.spread !== "-") {
-                        let spreadVal = parseFloat(row.spread);
-                        
-                        if (spreadVal > 15) { level = 4; trClass = "row-level-4"; }
-                        else if (spreadVal > 10) { level = 3; trClass = "row-level-3"; }
-                        else if (spreadVal > 5) { level = 2; trClass = "row-level-2"; }
-                        else if (spreadVal > 3) { level = 1; trClass = "row-level-1"; }
-                        
-                        currentScanCoins.add(row.ticker);
-                        
-                        // Если нашли жирный спред, проверяем, сигналили ли мы о нем уже
-                        if (level > 0) {
-                            if (!notifiedCoins[row.ticker] || notifiedCoins[row.ticker] < level) {
-                                notifiedCoins[row.ticker] = level; // Запоминаем
-                                if (level > highestAlertLevel) highestAlertLevel = level;
+                    let currentScanCoins = new Set();
+                    let highestAlertLevel = 0;
+
+                    data.forEach(row => {
+                        let trClass = "";
+                        let level = 0;
+                        if (row.spread && row.spread !== "-") {
+                            let spreadVal = parseFloat(row.spread);
+                            if (spreadVal > 15) { level = 4; trClass = "row-level-4"; }
+                            else if (spreadVal > 10) { level = 3; trClass = "row-level-3"; }
+                            else if (spreadVal > 5) { level = 2; trClass = "row-level-2"; }
+                            else if (spreadVal > 3) { level = 1; trClass = "row-level-1"; }
+                            
+                            currentScanCoins.add(row.ticker);
+                            if (level > 0) {
+                                if (!notifiedCoins[row.ticker] || notifiedCoins[row.ticker] < level) {
+                                    notifiedCoins[row.ticker] = level;
+                                    if (level > highestAlertLevel) highestAlertLevel = level;
+                                }
                             }
                         }
-                    }
 
-                    tableBody.innerHTML += `
-                        <tr class="${trClass}">
-                            <td>${row.ticker}</td>
-                            <td>${row.spread}</td>
-                            <td>${row.low}</td>
-                            <td>${row.high}</td>
-                            <td>${row.hits}</td>
-                            <td>${row.vol}</td>
-                        </tr>
-                    `;
-                });
-                
-                // Воспроизводим звук только один раз за тик (по наивысшему приоритету)
-                if (highestAlertLevel > 0) {
-                    playAlertSound(highestAlertLevel);
-                }
-
-                // Очистка памяти от монет, которые пропали из стакана
-                for (let coin in notifiedCoins) {
-                    if (!currentScanCoins.has(coin)) {
-                        delete notifiedCoins[coin];
+                        tableBody.innerHTML += `
+                            <tr class="${trClass}">
+                                <td>${row.ticker}</td>
+                                <td>${row.spread || "-"}</td>
+                                <td>${row.low || "-"}</td>
+                                <td>${row.high || "-"}</td>
+                                <td>${row.hits || "-"}</td>
+                                <td>${row.vol || "-"}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    if (highestAlertLevel > 0) playAlertSound(highestAlertLevel);
+                    
+                    for (let coin in notifiedCoins) {
+                        if (!currentScanCoins.has(coin)) delete notifiedCoins[coin];
                     }
+                } 
+                // Рендер для ПЛОТНОСТЕЙ
+                else if (currentMode === "densities") {
+                    title.innerText = 'Крупные плотности в стакане (> $1000)';
+                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Тип</th><th>Цена</th><th>Объем ($)</th><th>Расстояние до цены</th></tr>`;
+                    
+                    data.forEach(row => {
+                        let typeClass = "";
+                        let typeText = row.type;
+                        
+                        if (row.type === "LONG") {
+                            typeClass = "type-long";
+                            typeText = "🟢 ПОКУПКА";
+                        } else if (row.type === "SHORT") {
+                            typeClass = "type-short";
+                            typeText = "🔴 ПРОДАЖА";
+                        }
+
+                        // Если это заглушка "ИНИЦИАЛИЗАЦИЯ..." или "СКАНИРОВАНИЕ..."
+                        let displayVol = row.vol;
+                        if (typeof row.vol === 'number') {
+                            displayVol = `$${row.vol.toLocaleString('ru-RU')}`;
+                        }
+
+                        tableBody.innerHTML += `
+                            <tr>
+                                <td>${row.ticker}</td>
+                                <td class="${typeClass}">${typeText}</td>
+                                <td>${row.price}</td>
+                                <td style="font-weight:bold;">${displayVol}</td>
+                                <td>${row.dist}</td>
+                            </tr>
+                        `;
+                    });
                 }
                 
                 const statusText = document.getElementById('api-status');
