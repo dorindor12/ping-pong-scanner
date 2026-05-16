@@ -115,7 +115,6 @@
         .search-btn:hover { background: #00ccaa; }
         .result-card { margin-top: 30px; background: #1a1a1a; padding: 25px; border: 1px solid #333; border-radius: 8px; display: inline-block; text-align: left; min-width: 400px; }
 
-        /* Стили для ИИ-кружочков */
         .ai-dot {
             display: inline-block;
             width: 12px;
@@ -148,6 +147,7 @@
             <div class="exchange-selector">
                 <button class="ex-btn active" id="ex-bingx" onclick="setExchange('bingx')">BINGX</button>
                 <button class="ex-btn" id="ex-bitget" onclick="setExchange('bitget')">BITGET</button>
+                <button class="ex-btn" id="ex-mexc" onclick="setExchange('mexc')">MEXC</button>
             </div>
             
             <button id="sound-toggle" class="sound-btn">🔕 Звук ВКЛ</button>
@@ -175,8 +175,9 @@
         
         function setExchange(exchange) {
             currentExchange = exchange;
-            document.getElementById('ex-bingx').classList.remove('active');
-            document.getElementById('ex-bitget').classList.remove('active');
+            // Умное снятие класса active со всех кнопок бирж
+            document.querySelectorAll('.ex-btn').forEach(btn => btn.classList.remove('active'));
+            // Установка active на нажатую
             document.getElementById('ex-' + exchange).classList.add('active');
             
             notifiedCoins = {}; 
@@ -320,7 +321,6 @@
                 
                 if (currentMode === "pingpong") {
                     title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
-                    // ЗДЕСЬ ДОБАВЛЕНА КОЛОНКА "ДАВЛЕНИЕ СТАКАНА"
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем $ (1м/5м/15м)</th><th>Стенки ($)</th><th>Давление стакана</th></tr>`;
                     
                     let currentScanCoins = new Set();
@@ -330,7 +330,7 @@
                         let trClass = "";
                         let level = 0;
                         let aiDot = ""; 
-                        let imbalanceHtml = "-"; // Заглушка для прогресс-бара
+                        let imbalanceHtml = "-"; 
                         
                         if (row.spread && row.spread !== "-") {
                             let spreadVal = parseFloat(row.spread);
@@ -355,7 +355,6 @@
                                 aiDot = `<span class="ai-dot ai-blue" title="ПРОПУСК: Слишком маленький спред или мертвый стакан (0 сделок)"></span>`;
                             }
 
-                            // === Отрисовка шкалы перекоса стакана ===
                             if (row.imbalance && row.imbalance !== "-") {
                                 let bidPct = parseInt(row.imbalance);
                                 let askPct = 100 - bidPct;
