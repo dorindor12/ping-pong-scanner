@@ -78,13 +78,11 @@
             font-weight: bold;
         }
         
-        /* Подсветка Ping-Pong */
         .row-level-1 { background-color: rgba(0, 255, 204, 0.1); color: #00ffcc; font-weight: bold; }
         .row-level-2 { background-color: rgba(255, 255, 0, 0.1); color: #ffff00; font-weight: bold; } 
         .row-level-3 { background-color: rgba(255, 165, 0, 0.1); color: #ffa500; font-weight: bold; } 
         .row-level-4 { background-color: rgba(255, 68, 68, 0.15); color: #ff4444; font-weight: bold; }
         
-        /* Подсветка Плотностей */
         .type-long { color: #00ffcc; font-weight: bold; }
         .type-short { color: #ff4444; font-weight: bold; }
     </style>
@@ -114,31 +112,25 @@
 
     <script>
         const BASE_URL = "https://ping-pong-backend-yhro.onrender.com/api";
-        let currentMode = "pingpong"; // pingpong | densities
+        let currentMode = "pingpong"; 
         
-        // --- УПРАВЛЕНИЕ ВКЛАДКАМИ ---
         document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
         document.getElementById('tab-densities').addEventListener('click', (e) => switchTab('densities', e.target));
         
         function switchTab(mode, element) {
             currentMode = mode;
-            // Убираем класс active у всех
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            // Вешаем на нажатую
             element.classList.add('active');
-            
-            // Сразу обновляем таблицу (очищаем и грузим новые)
             document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных...</td></tr>';
             updateData();
         }
 
-        // --- СИСТЕМА ЗВУКА (только для Ping-Pong) ---
         let soundEnabled = true; 
         let audioCtx = null;
         let notifiedCoins = {};
 
         const soundBtn = document.getElementById('sound-toggle');
-        soundBtn.classList.add('on'); // По умолчанию ВКЛ
+        soundBtn.classList.add('on');
         soundBtn.addEventListener('click', () => {
             soundEnabled = !soundEnabled;
             if (soundEnabled) {
@@ -172,10 +164,8 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        // --- ЛОГИКА ОБНОВЛЕНИЯ ДАННЫХ ---
         async function updateData() {
             try {
-                // Инициализируем аудио при первом успешном ответе (если включено)
                 if (soundEnabled && !audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
@@ -192,9 +182,8 @@
                 const tableHead = document.getElementById('table-head');
                 const tableBody = document.getElementById('data-table');
                 
-                tableBody.innerHTML = '';
+                let htmlBuffer = ""; // Оптимизация: собираем HTML в память, чтобы не вешать браузер
                 
-                // Рендер для PING-PONG
                 if (currentMode === "pingpong") {
                     title.innerText = 'Активные ситуации "Ping-Pong"';
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем в стенках ($)</th></tr>`;
@@ -221,7 +210,7 @@
                             }
                         }
 
-                        tableBody.innerHTML += `
+                        htmlBuffer += `
                             <tr class="${trClass}">
                                 <td>${row.ticker}</td>
                                 <td>${row.spread || "-"}</td>
@@ -233,15 +222,16 @@
                         `;
                     });
                     
+                    tableBody.innerHTML = htmlBuffer; // Отрисовка одним махом
+                    
                     if (highestAlertLevel > 0) playAlertSound(highestAlertLevel);
                     
                     for (let coin in notifiedCoins) {
                         if (!currentScanCoins.has(coin)) delete notifiedCoins[coin];
                     }
                 } 
-                // Рендер для ПЛОТНОСТЕЙ
                 else if (currentMode === "densities") {
-                    title.innerText = 'Крупные плотности в стакане (> $1000)';
+                    title.innerText = 'Крупные плотности в стакане (Топ-100 от $5000)';
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Тип</th><th>Цена</th><th>Объем ($)</th><th>Расстояние до цены</th></tr>`;
                     
                     data.forEach(row => {
@@ -256,13 +246,12 @@
                             typeText = "🔴 ПРОДАЖА";
                         }
 
-                        // Если это заглушка "ИНИЦИАЛИЗАЦИЯ..." или "СКАНИРОВАНИЕ..."
                         let displayVol = row.vol;
                         if (typeof row.vol === 'number') {
                             displayVol = `$${row.vol.toLocaleString('ru-RU')}`;
                         }
 
-                        tableBody.innerHTML += `
+                        htmlBuffer += `
                             <tr>
                                 <td>${row.ticker}</td>
                                 <td class="${typeClass}">${typeText}</td>
@@ -272,6 +261,8 @@
                             </tr>
                         `;
                     });
+                    
+                    tableBody.innerHTML = htmlBuffer; // Отрисовка одним махом
                 }
                 
                 const statusText = document.getElementById('api-status');
