@@ -101,7 +101,6 @@
             font-weight: bold;
         }
         
-        /* Цвета строк по спреду */
         .row-level-1 { background-color: rgba(0, 255, 204, 0.1); color: #00ffcc; font-weight: bold; }
         .row-level-2 { background-color: rgba(255, 255, 0, 0.1); color: #ffff00; font-weight: bold; } 
         .row-level-3 { background-color: rgba(255, 165, 0, 0.1); color: #ffa500; font-weight: bold; } 
@@ -116,9 +115,7 @@
         .search-btn:hover { background: #00ccaa; }
         .result-card { margin-top: 30px; background: #1a1a1a; padding: 25px; border: 1px solid #333; border-radius: 8px; display: inline-block; text-align: left; min-width: 400px; }
 
-        /* ========================================= */
-        /* СТИЛИ ДЛЯ ИИ-КРУЖОЧКОВ */
-        /* ========================================= */
+        /* Стили для ИИ-кружочков */
         .ai-dot {
             display: inline-block;
             width: 12px;
@@ -129,11 +126,7 @@
         }
         .ai-blue { background-color: #007bff; box-shadow: 0 0 8px #007bff; }
         .ai-yellow { background-color: #ffc107; box-shadow: 0 0 8px #ffc107; }
-        .ai-red { 
-            background-color: #ff4444; 
-            box-shadow: 0 0 8px #ff4444; 
-            animation: pulse 1s infinite; /* Пульсация для красного */
-        }
+        .ai-red { background-color: #ff4444; box-shadow: 0 0 8px #ff4444; animation: pulse 1s infinite; }
         
         @keyframes pulse {
             0% { transform: scale(1); box-shadow: 0 0 8px #ff4444; }
@@ -189,7 +182,7 @@
             notifiedCoins = {}; 
             
             if (currentMode !== 'search') {
-                document.getElementById('data-table').innerHTML = '<tr><td colspan="7">Загрузка данных биржи...</td></tr>';
+                document.getElementById('data-table').innerHTML = '<tr><td colspan="8">Загрузка данных биржи...</td></tr>';
                 updateData(); 
             } else {
                 document.getElementById('search-result').innerHTML = ''; 
@@ -217,7 +210,7 @@
             } else {
                 table.style.display = 'table';
                 searchSection.style.display = 'none';
-                document.getElementById('data-table').innerHTML = '<tr><td colspan="7">Загрузка данных...</td></tr>';
+                document.getElementById('data-table').innerHTML = '<tr><td colspan="8">Загрузка данных...</td></tr>';
                 updateData(); 
             }
         }
@@ -327,7 +320,8 @@
                 
                 if (currentMode === "pingpong") {
                     title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
-                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем $ (1м/5м/15м)</th><th>Стенки ($)</th></tr>`;
+                    // ЗДЕСЬ ДОБАВЛЕНА КОЛОНКА "ДАВЛЕНИЕ СТАКАНА"
+                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем $ (1м/5м/15м)</th><th>Стенки ($)</th><th>Давление стакана</th></tr>`;
                     
                     let currentScanCoins = new Set();
                     let highestAlertLevel = 0;
@@ -335,39 +329,45 @@
                     data.forEach(row => {
                         let trClass = "";
                         let level = 0;
-                        let aiDot = ""; // Сюда положим кружочек
+                        let aiDot = ""; 
+                        let imbalanceHtml = "-"; // Заглушка для прогресс-бара
                         
                         if (row.spread && row.spread !== "-") {
                             let spreadVal = parseFloat(row.spread);
                             
-                            // Определяем уровень для звука и цвета фона
                             if (spreadVal > 15) { level = 4; trClass = "row-level-4"; }
                             else if (spreadVal > 10) { level = 3; trClass = "row-level-3"; }
                             else if (spreadVal > 5) { level = 2; trClass = "row-level-2"; }
                             else if (spreadVal > 3) { level = 1; trClass = "row-level-1"; }
                             
-                            // ==========================================
-                            // ЛОГИКА ИИ ДЛЯ ВЫБОРА КРУЖОЧКА
-                            // ==========================================
                             let hits1m = 0;
                             if (row.hits && row.hits !== "-" && row.hits !== "~") {
-                                // Достаем количество сделок за первую минуту (первое число до слеша)
                                 hits1m = parseInt(row.hits.split('/')[0].trim());
                             }
 
-                            // 1. СРОЧНО (Красный пульсирующий)
                             if (spreadVal >= 4.0 && hits1m >= 2) {
                                 aiDot = `<span class="ai-dot ai-red" title="СРОЧНО: Большой спред (${spreadVal}%) и монета активна!"></span>`;
                             } 
-                            // 2. ХОРОШО (Желтый)
                             else if (spreadVal >= 2.0 && hits1m >= 1) {
                                 aiDot = `<span class="ai-dot ai-yellow" title="ХОРОШО: Рабочий спред и есть активность"></span>`;
                             } 
-                            // 3. МУСОР (Синий)
                             else {
                                 aiDot = `<span class="ai-dot ai-blue" title="ПРОПУСК: Слишком маленький спред или мертвый стакан (0 сделок)"></span>`;
                             }
-                            // ==========================================
+
+                            // === Отрисовка шкалы перекоса стакана ===
+                            if (row.imbalance && row.imbalance !== "-") {
+                                let bidPct = parseInt(row.imbalance);
+                                let askPct = 100 - bidPct;
+                                imbalanceHtml = `
+                                    <div style="width: 100px; height: 10px; background: #ff4444; border-radius: 5px; overflow: hidden; display: flex; margin-bottom: 5px;">
+                                        <div style="width: ${bidPct}%; background: #00ffcc; transition: width 0.3s;"></div>
+                                    </div>
+                                    <div style="font-size: 11px; color: #aaa; text-align: center; width: 100px;">
+                                        <span style="color: #00ffcc;">${bidPct}%</span> | <span style="color: #ff4444;">${askPct}%</span>
+                                    </div>
+                                `;
+                            }
 
                             currentScanCoins.add(row.ticker);
                             if (level > 0) {
@@ -387,6 +387,7 @@
                                 <td>${row.hits || "-"}</td>
                                 <td>${row.vol_act || "-"}</td>
                                 <td>${row.vol || "-"}</td>
+                                <td>${imbalanceHtml}</td>
                             </tr>
                         `;
                     });
