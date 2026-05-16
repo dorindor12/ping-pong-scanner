@@ -44,6 +44,30 @@
             align-items: center;
             gap: 20px;
         }
+        
+        /* Стили для переключателя бирж */
+        .exchange-selector {
+            display: flex;
+            background: #1a1a1a;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+        .ex-btn {
+            padding: 8px 20px;
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: 0.3s;
+        }
+        .ex-btn.active {
+            background: #00ffcc;
+            color: #000;
+        }
+        
         .sound-btn {
             background-color: #333;
             color: #fff;
@@ -86,7 +110,6 @@
         .type-long { color: #00ffcc; font-weight: bold; }
         .type-short { color: #ff4444; font-weight: bold; }
         
-        /* Стили для поиска */
         .search-container { text-align: center; padding: 40px 20px; }
         .search-input { padding: 12px; font-size: 18px; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; text-transform: uppercase; width: 300px; outline: none; }
         .search-btn { padding: 12px 25px; font-size: 18px; background: #00ffcc; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-left: 10px; transition: 0.2s; }
@@ -102,7 +125,13 @@
             <div class="tab active" id="tab-pingpong">Ping-Pong</div>
             <div class="tab" id="tab-densities">Плотности</div>
         </div>
+        
         <div class="controls">
+            <div class="exchange-selector">
+                <button class="ex-btn active" id="ex-bingx" onclick="setExchange('bingx')">BINGX</button>
+                <button class="ex-btn" id="ex-bitget" onclick="setExchange('bitget')">BITGET</button>
+            </div>
+            
             <button id="sound-toggle" class="sound-btn">🔕 Звук ВКЛ</button>
             <div class="status" id="api-status">STATUS: [CONNECTING...]</div>
         </div>
@@ -123,8 +152,27 @@
 
     <script>
         const BASE_URL = "https://ping-pong-backend-yhro.onrender.com/api";
-        let currentMode = "pingpong"; // pingpong | densities | search
+        let currentMode = "pingpong"; 
+        let currentExchange = "bingx"; // По умолчанию BingX
         
+        // Переключение Бирж
+        function setExchange(exchange) {
+            currentExchange = exchange;
+            document.getElementById('ex-bingx').classList.remove('active');
+            document.getElementById('ex-bitget').classList.remove('active');
+            document.getElementById('ex-' + exchange).classList.add('active');
+            
+            notifiedCoins = {}; // Очищаем память звуков, чтобы не пищало старое
+            
+            if (currentMode !== 'search') {
+                document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных биржи...</td></tr>';
+                updateData(); // Мгновенно запрашиваем новые данные
+            } else {
+                document.getElementById('search-result').innerHTML = ''; // Очищаем результат поиска
+            }
+        }
+
+        // Переключение Вкладок
         document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
         document.getElementById('tab-densities').addEventListener('click', (e) => switchTab('densities', e.target));
         document.getElementById('tab-search').addEventListener('click', (e) => switchTab('search', e.target));
@@ -147,7 +195,7 @@
                 table.style.display = 'table';
                 searchSection.style.display = 'none';
                 document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных...</td></tr>';
-                updateData(); // Принудительное обновление при переключении
+                updateData(); 
             }
         }
 
@@ -190,16 +238,15 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        // --- ЛОГИКА ПОИСКА ---
         async function performSearch() {
             const input = document.getElementById('search-input').value.trim();
             if (!input) return;
             
             const resDiv = document.getElementById('search-result');
-            resDiv.innerHTML = '<h3 style="color:yellow;">Связь с биржей... ⏳</h3>';
+            resDiv.innerHTML = `<h3 style="color:yellow;">Связь с биржей ${currentExchange.toUpperCase()}... ⏳</h3>`;
             
             try {
-                const response = await fetch(`${BASE_URL}/search?ticker=${input}`);
+                const response = await fetch(`${BASE_URL}/search?ticker=${input}&exchange=${currentExchange}`);
                 const data = await response.json();
                 
                 if (data.error) {
@@ -217,7 +264,7 @@
 
                 resDiv.innerHTML = `
                     <div class="result-card">
-                        <h2 style="margin-top:0; color:#00ffcc; border-bottom: 1px solid #333; padding-bottom: 10px;">${data.ticker}</h2>
+                        <h2 style="margin-top:0; color:#00ffcc; border-bottom: 1px solid #333; padding-bottom: 10px;">${data.ticker} <span style="font-size:14px; color:#888;">(${currentExchange.toUpperCase()})</span></h2>
                         <p style="font-size: 18px;"><b>Текущая цена:</b> ${data.price}</p>
                         <p style="font-size: 18px;"><b>Чистый спред:</b> <span style="color:#ffa500; font-weight:bold;">${data.spread}</span></p>
                         
@@ -233,9 +280,7 @@
             }
         }
 
-        // --- ЛОГИКА ТАБЛИЦ (Ping-Pong & Плотности) ---
         async function updateData() {
-            // Если мы во вкладке поиска, не дергаем сервер автообновлением
             if (currentMode === "search") return;
 
             try {
@@ -245,7 +290,8 @@
 
                 const timestamp = new Date().getTime();
                 const targetEndpoint = currentMode === "pingpong" ? "/ping-pong" : "/densities";
-                const response = await fetch(`${BASE_URL}${targetEndpoint}?t=${timestamp}`);
+                // Добавляем параметр exchange в запрос
+                const response = await fetch(`${BASE_URL}${targetEndpoint}?exchange=${currentExchange}&t=${timestamp}`);
                 
                 if (!response.ok) throw new Error("Сервер не ответил");
                 
@@ -258,7 +304,7 @@
                 let htmlBuffer = ""; 
                 
                 if (currentMode === "pingpong") {
-                    title.innerText = 'Активные ситуации "Ping-Pong"';
+                    title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем в стенках ($)</th></tr>`;
                     
                     let currentScanCoins = new Set();
@@ -304,7 +350,7 @@
                     }
                 } 
                 else if (currentMode === "densities") {
-                    title.innerText = 'Крупные плотности в стакане (Топ-100 от $5000)';
+                    title.innerText = `Крупные плотности в стакане (${currentExchange.toUpperCase()})`;
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Тип</th><th>Цена</th><th>Объем ($)</th><th>Расстояние до цены</th></tr>`;
                     
                     data.forEach(row => {
@@ -344,7 +390,7 @@
         }
 
         updateData();
-        setInterval(updateData, 5000); // Автообновление раз в 5 сек (работает только для ПингПонга и Плотностей)
+        setInterval(updateData, 5000); 
     </script>
 </body>
 </html>
