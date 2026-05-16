@@ -45,7 +45,6 @@
             gap: 20px;
         }
         
-        /* Стили для переключателя бирж */
         .exchange-selector {
             display: flex;
             background: #1a1a1a;
@@ -153,26 +152,24 @@
     <script>
         const BASE_URL = "https://ping-pong-backend-yhro.onrender.com/api";
         let currentMode = "pingpong"; 
-        let currentExchange = "bingx"; // По умолчанию BingX
+        let currentExchange = "bingx"; 
         
-        // Переключение Бирж
         function setExchange(exchange) {
             currentExchange = exchange;
             document.getElementById('ex-bingx').classList.remove('active');
             document.getElementById('ex-bitget').classList.remove('active');
             document.getElementById('ex-' + exchange).classList.add('active');
             
-            notifiedCoins = {}; // Очищаем память звуков, чтобы не пищало старое
+            notifiedCoins = {}; 
             
             if (currentMode !== 'search') {
                 document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных биржи...</td></tr>';
-                updateData(); // Мгновенно запрашиваем новые данные
+                updateData(); 
             } else {
-                document.getElementById('search-result').innerHTML = ''; // Очищаем результат поиска
+                document.getElementById('search-result').innerHTML = ''; 
             }
         }
 
-        // Переключение Вкладок
         document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
         document.getElementById('tab-densities').addEventListener('click', (e) => switchTab('densities', e.target));
         document.getElementById('tab-search').addEventListener('click', (e) => switchTab('search', e.target));
@@ -290,7 +287,6 @@
 
                 const timestamp = new Date().getTime();
                 const targetEndpoint = currentMode === "pingpong" ? "/ping-pong" : "/densities";
-                // Добавляем параметр exchange в запрос
                 const response = await fetch(`${BASE_URL}${targetEndpoint}?exchange=${currentExchange}&t=${timestamp}`);
                 
                 if (!response.ok) throw new Error("Сервер не ответил");
@@ -305,7 +301,8 @@
                 
                 if (currentMode === "pingpong") {
                     title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
-                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем в стенках ($)</th></tr>`;
+                    // ЗДЕСЬ ОБНОВЛЕНО НАЗВАНИЕ КОЛОНКИ
+                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Объем $ (1м/5м/15м)</th><th>Объем в стенках ($)</th></tr>`;
                     
                     let currentScanCoins = new Set();
                     let highestAlertLevel = 0;
