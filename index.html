@@ -74,7 +74,7 @@
                 <th>Спред (%)</th>
                 <th>Покупка (Низ)</th>
                 <th>Продажа (Верх)</th>
-                <th>Касаний</th>
+                <th>Сделок (1м / 5м / 15м)</th>
                 <th>Объем в стенках ($)</th>
             </tr>
         </thead>
@@ -86,51 +86,3 @@
         const API_URL = "https://ping-pong-backend-yhro.onrender.com/api/ping-pong";
 
         async function updateData() {
-            try {
-                // Жесткий сброс кэша: добавляем уникальную метку времени к каждому запросу
-                const timestamp = new Date().getTime();
-                const response = await fetch(`${API_URL}?t=${timestamp}`);
-                
-                if (!response.ok) {
-                    throw new Error("Сервер не ответил");
-                }
-
-                const data = await response.json();
-                
-                const tableBody = document.getElementById('data-table');
-                const statusText = document.getElementById('api-status');
-                
-                // Очищаем таблицу
-                tableBody.innerHTML = '';
-                
-                // Заполняем новыми данными
-                data.forEach(row => {
-                    tableBody.innerHTML += `
-                        <tr>
-                            <td>${row.ticker}</td>
-                            <td>${row.spread}</td>
-                            <td>${row.low}</td>
-                            <td>${row.high}</td>
-                            <td>${row.hits}</td>
-                            <td>${row.vol}</td>
-                        </tr>
-                    `;
-                });
-                
-                // Меняем статус на зеленый
-                statusText.innerText = "STATUS: [SYSTEM_ONLINE]";
-                statusText.style.color = "#00ffcc";
-                
-            } catch (error) {
-                console.error("Ошибка API:", error);
-                const statusText = document.getElementById('api-status');
-                statusText.innerText = "STATUS: [CONNECTION_ERROR]";
-                statusText.style.color = "#ff4444";
-            }
-        }
-
-        // Запуск при загрузке
-        updateData();
-        // Повтор каждые 5 секунд
-        setInterval(updateData, 5000);
-    </script>
