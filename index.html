@@ -85,13 +85,20 @@
         
         .type-long { color: #00ffcc; font-weight: bold; }
         .type-short { color: #ff4444; font-weight: bold; }
+        
+        /* Стили для поиска */
+        .search-container { text-align: center; padding: 40px 20px; }
+        .search-input { padding: 12px; font-size: 18px; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; text-transform: uppercase; width: 300px; outline: none; }
+        .search-btn { padding: 12px 25px; font-size: 18px; background: #00ffcc; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-left: 10px; transition: 0.2s; }
+        .search-btn:hover { background: #00ccaa; }
+        .result-card { margin-top: 30px; background: #1a1a1a; padding: 25px; border: 1px solid #333; border-radius: 8px; display: inline-block; text-align: left; min-width: 400px; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div class="tabs">
-            <div class="tab" id="tab-general">Общий поиск</div>
+            <div class="tab" id="tab-search">Общий поиск</div>
             <div class="tab active" id="tab-pingpong">Ping-Pong</div>
             <div class="tab" id="tab-densities">Плотности</div>
         </div>
@@ -103,26 +110,45 @@
 
     <h2 id="page-title">Активные ситуации "Ping-Pong"</h2>
     
-    <table>
-        <thead id="table-head">
-            </thead>
-        <tbody id="data-table">
-            </tbody>
+    <table id="main-table">
+        <thead id="table-head"></thead>
+        <tbody id="data-table"></tbody>
     </table>
+
+    <div id="search-section" class="search-container" style="display: none;">
+        <input type="text" id="search-input" class="search-input" placeholder="Введите тикер (например: DOGE)" onkeydown="if(event.key === 'Enter') performSearch()">
+        <button class="search-btn" onclick="performSearch()">Сканировать</button>
+        <div id="search-result"></div>
+    </div>
 
     <script>
         const BASE_URL = "https://ping-pong-backend-yhro.onrender.com/api";
-        let currentMode = "pingpong"; 
+        let currentMode = "pingpong"; // pingpong | densities | search
         
         document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
         document.getElementById('tab-densities').addEventListener('click', (e) => switchTab('densities', e.target));
+        document.getElementById('tab-search').addEventListener('click', (e) => switchTab('search', e.target));
         
         function switchTab(mode, element) {
             currentMode = mode;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             element.classList.add('active');
-            document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных...</td></tr>';
-            updateData();
+            
+            const table = document.getElementById('main-table');
+            const searchSection = document.getElementById('search-section');
+            const title = document.getElementById('page-title');
+            
+            if (mode === 'search') {
+                table.style.display = 'none';
+                searchSection.style.display = 'block';
+                title.innerText = 'Быстрый рентген монеты';
+                document.getElementById('search-result').innerHTML = '';
+            } else {
+                table.style.display = 'table';
+                searchSection.style.display = 'none';
+                document.getElementById('data-table').innerHTML = '<tr><td colspan="6">Загрузка данных...</td></tr>';
+                updateData(); // Принудительное обновление при переключении
+            }
         }
 
         let soundEnabled = true; 
@@ -164,7 +190,54 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
+        // --- ЛОГИКА ПОИСКА ---
+        async function performSearch() {
+            const input = document.getElementById('search-input').value.trim();
+            if (!input) return;
+            
+            const resDiv = document.getElementById('search-result');
+            resDiv.innerHTML = '<h3 style="color:yellow;">Связь с биржей... ⏳</h3>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/search?ticker=${input}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    resDiv.innerHTML = `<h3 style="color:#ff4444;">${data.error}</h3>`;
+                    return;
+                }
+                
+                let bidHtml = data.nearest_bid 
+                    ? `<span class="type-long">Покупка:</span> ${data.nearest_bid.price} (Объем: $${data.nearest_bid.vol.toLocaleString('ru-RU')})` 
+                    : "Нет крупных стенок";
+                    
+                let askHtml = data.nearest_ask 
+                    ? `<span class="type-short">Продажа:</span> ${data.nearest_ask.price} (Объем: $${data.nearest_ask.vol.toLocaleString('ru-RU')})` 
+                    : "Нет крупных стенок";
+
+                resDiv.innerHTML = `
+                    <div class="result-card">
+                        <h2 style="margin-top:0; color:#00ffcc; border-bottom: 1px solid #333; padding-bottom: 10px;">${data.ticker}</h2>
+                        <p style="font-size: 18px;"><b>Текущая цена:</b> ${data.price}</p>
+                        <p style="font-size: 18px;"><b>Чистый спред:</b> <span style="color:#ffa500; font-weight:bold;">${data.spread}</span></p>
+                        
+                        <div style="background: #222; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                            <h4 style="margin-top:0; color:#888;">Ближайшие стенки (от $1000)</h4>
+                            <p style="font-size: 16px; margin: 10px 0;">⬇️ ${bidHtml}</p>
+                            <p style="font-size: 16px; margin: 10px 0;">⬆️ ${askHtml}</p>
+                        </div>
+                    </div>
+                `;
+            } catch(e) {
+                resDiv.innerHTML = `<h3 style="color:#ff4444;">Ошибка запроса. Сервер недоступен.</h3>`;
+            }
+        }
+
+        // --- ЛОГИКА ТАБЛИЦ (Ping-Pong & Плотности) ---
         async function updateData() {
+            // Если мы во вкладке поиска, не дергаем сервер автообновлением
+            if (currentMode === "search") return;
+
             try {
                 if (soundEnabled && !audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -182,7 +255,7 @@
                 const tableHead = document.getElementById('table-head');
                 const tableBody = document.getElementById('data-table');
                 
-                let htmlBuffer = ""; // Оптимизация: собираем HTML в память, чтобы не вешать браузер
+                let htmlBuffer = ""; 
                 
                 if (currentMode === "pingpong") {
                     title.innerText = 'Активные ситуации "Ping-Pong"';
@@ -222,7 +295,7 @@
                         `;
                     });
                     
-                    tableBody.innerHTML = htmlBuffer; // Отрисовка одним махом
+                    tableBody.innerHTML = htmlBuffer; 
                     
                     if (highestAlertLevel > 0) playAlertSound(highestAlertLevel);
                     
@@ -238,18 +311,11 @@
                         let typeClass = "";
                         let typeText = row.type;
                         
-                        if (row.type === "LONG") {
-                            typeClass = "type-long";
-                            typeText = "🟢 ПОКУПКА";
-                        } else if (row.type === "SHORT") {
-                            typeClass = "type-short";
-                            typeText = "🔴 ПРОДАЖА";
-                        }
+                        if (row.type === "LONG") { typeClass = "type-long"; typeText = "🟢 ПОКУПКА"; } 
+                        else if (row.type === "SHORT") { typeClass = "type-short"; typeText = "🔴 ПРОДАЖА"; }
 
                         let displayVol = row.vol;
-                        if (typeof row.vol === 'number') {
-                            displayVol = `$${row.vol.toLocaleString('ru-RU')}`;
-                        }
+                        if (typeof row.vol === 'number') displayVol = `$${row.vol.toLocaleString('ru-RU')}`;
 
                         htmlBuffer += `
                             <tr>
@@ -262,7 +328,7 @@
                         `;
                     });
                     
-                    tableBody.innerHTML = htmlBuffer; // Отрисовка одним махом
+                    tableBody.innerHTML = htmlBuffer; 
                 }
                 
                 const statusText = document.getElementById('api-status');
@@ -278,7 +344,7 @@
         }
 
         updateData();
-        setInterval(updateData, 5000);
+        setInterval(updateData, 5000); // Автообновление раз в 5 сек (работает только для ПингПонга и Плотностей)
     </script>
 </body>
 </html>
