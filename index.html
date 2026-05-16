@@ -62,7 +62,7 @@
             <div class="tab active">Ping-Pong</div>
             <div class="tab">Плотности</div>
         </div>
-        <div class="status" id="api-status">STATUS: [CONNECTING_TO_SERVER...]</div>
+        <div class="status" id="api-status">STATUS: [CONNECTING...]</div>
     </div>
 
     <h2>Активные ситуации "Ping-Pong"</h2>
@@ -83,21 +83,27 @@
     </table>
 
     <script>
-        // Та самая ссылка на твой сервер Render
         const API_URL = "https://ping-pong-backend-yhro.onrender.com/api/ping-pong";
 
         async function updateData() {
             try {
-                const response = await fetch(API_URL);
+                // Жесткий сброс кэша: добавляем уникальную метку времени к каждому запросу
+                const timestamp = new Date().getTime();
+                const response = await fetch(`${API_URL}?t=${timestamp}`);
+                
+                if (!response.ok) {
+                    throw new Error("Сервер не ответил");
+                }
+
                 const data = await response.json();
                 
                 const tableBody = document.getElementById('data-table');
                 const statusText = document.getElementById('api-status');
                 
-                // Очищаем таблицу перед новым заполнением
+                // Очищаем таблицу
                 tableBody.innerHTML = '';
                 
-                // Вставляем каждую монету из базы Render
+                // Заполняем новыми данными
                 data.forEach(row => {
                     tableBody.innerHTML += `
                         <tr>
@@ -111,51 +117,7 @@
                     `;
                 });
                 
-                // Зажигаем зеленый статус
-                statusText.innerText = "STATUS: [SYSTEM_ONLINE]";
-                statusText.style.color = "#00ffcc";
-                
-            } catch (error) {
-                // Если сервер уснул или упал, зажигаем красный
-                console.error("Ошибка API:", error);
-                const statusText = document.getElementById('api-status');
-                statusText.innerText = "STATUS: [CONNECTION_ERROR]";
-                statusText.style.color = "#ff4444";
-            }
-        }
-
-        // Запускаем сразу при загрузке страницы
-        updateData();
-        // И повторяем каждые 5 секунд
-        setInterval(updateData, 5000);
-   <script>
-        // Та самая ссылка на твой сервер Render
-        const API_URL = "https://ping-pong-backend-yhro.onrender.com/api/ping-pong";
-
-        async function updateData() {
-            try {
-                // ХИТРОСТЬ: Добавляем к ссылке текущее время, чтобы браузер думал, что это новый запрос, и не кэшировал его!
-                const response = await fetch(API_URL + "?nocache=" + new Date().getTime());
-                const data = await response.json();
-                
-                const tableBody = document.getElementById('data-table');
-                const statusText = document.getElementById('api-status');
-                
-                tableBody.innerHTML = '';
-                
-                data.forEach(row => {
-                    tableBody.innerHTML += `
-                        <tr>
-                            <td>${row.ticker}</td>
-                            <td>${row.spread}</td>
-                            <td>${row.low}</td>
-                            <td>${row.high}</td>
-                            <td>${row.hits}</td>
-                            <td>${row.vol}</td>
-                        </tr>
-                    `;
-                });
-                
+                // Меняем статус на зеленый
                 statusText.innerText = "STATUS: [SYSTEM_ONLINE]";
                 statusText.style.color = "#00ffcc";
                 
@@ -167,8 +129,8 @@
             }
         }
 
-        // Запускаем сразу при загрузке
+        // Запуск при загрузке
         updateData();
-        // Повторяем каждые 5 секунд
+        // Повтор каждые 5 секунд
         setInterval(updateData, 5000);
     </script>
