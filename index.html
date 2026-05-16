@@ -101,6 +101,7 @@
             font-weight: bold;
         }
         
+        /* Цвета строк по спреду */
         .row-level-1 { background-color: rgba(0, 255, 204, 0.1); color: #00ffcc; font-weight: bold; }
         .row-level-2 { background-color: rgba(255, 255, 0, 0.1); color: #ffff00; font-weight: bold; } 
         .row-level-3 { background-color: rgba(255, 165, 0, 0.1); color: #ffa500; font-weight: bold; } 
@@ -114,6 +115,31 @@
         .search-btn { padding: 12px 25px; font-size: 18px; background: #00ffcc; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-left: 10px; transition: 0.2s; }
         .search-btn:hover { background: #00ccaa; }
         .result-card { margin-top: 30px; background: #1a1a1a; padding: 25px; border: 1px solid #333; border-radius: 8px; display: inline-block; text-align: left; min-width: 400px; }
+
+        /* ========================================= */
+        /* СТИЛИ ДЛЯ ИИ-КРУЖОЧКОВ */
+        /* ========================================= */
+        .ai-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: -1px;
+        }
+        .ai-blue { background-color: #007bff; box-shadow: 0 0 8px #007bff; }
+        .ai-yellow { background-color: #ffc107; box-shadow: 0 0 8px #ffc107; }
+        .ai-red { 
+            background-color: #ff4444; 
+            box-shadow: 0 0 8px #ff4444; 
+            animation: pulse 1s infinite; /* Пульсация для красного */
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 8px #ff4444; }
+            50% { transform: scale(1.4); box-shadow: 0 0 15px #ff4444; }
+            100% { transform: scale(1); box-shadow: 0 0 8px #ff4444; }
+        }
     </style>
 </head>
 <body>
@@ -301,7 +327,6 @@
                 
                 if (currentMode === "pingpong") {
                     title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
-                    // ЗДЕСЬ ДОБАВЛЕНЫ ОБЕ КОЛОНКИ
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем $ (1м/5м/15м)</th><th>Стенки ($)</th></tr>`;
                     
                     let currentScanCoins = new Set();
@@ -310,13 +335,40 @@
                     data.forEach(row => {
                         let trClass = "";
                         let level = 0;
+                        let aiDot = ""; // Сюда положим кружочек
+                        
                         if (row.spread && row.spread !== "-") {
                             let spreadVal = parseFloat(row.spread);
+                            
+                            // Определяем уровень для звука и цвета фона
                             if (spreadVal > 15) { level = 4; trClass = "row-level-4"; }
                             else if (spreadVal > 10) { level = 3; trClass = "row-level-3"; }
                             else if (spreadVal > 5) { level = 2; trClass = "row-level-2"; }
                             else if (spreadVal > 3) { level = 1; trClass = "row-level-1"; }
                             
+                            // ==========================================
+                            // ЛОГИКА ИИ ДЛЯ ВЫБОРА КРУЖОЧКА
+                            // ==========================================
+                            let hits1m = 0;
+                            if (row.hits && row.hits !== "-" && row.hits !== "~") {
+                                // Достаем количество сделок за первую минуту (первое число до слеша)
+                                hits1m = parseInt(row.hits.split('/')[0].trim());
+                            }
+
+                            // 1. СРОЧНО (Красный пульсирующий)
+                            if (spreadVal >= 4.0 && hits1m >= 2) {
+                                aiDot = `<span class="ai-dot ai-red" title="СРОЧНО: Большой спред (${spreadVal}%) и монета активна!"></span>`;
+                            } 
+                            // 2. ХОРОШО (Желтый)
+                            else if (spreadVal >= 2.0 && hits1m >= 1) {
+                                aiDot = `<span class="ai-dot ai-yellow" title="ХОРОШО: Рабочий спред и есть активность"></span>`;
+                            } 
+                            // 3. МУСОР (Синий)
+                            else {
+                                aiDot = `<span class="ai-dot ai-blue" title="ПРОПУСК: Слишком маленький спред или мертвый стакан (0 сделок)"></span>`;
+                            }
+                            // ==========================================
+
                             currentScanCoins.add(row.ticker);
                             if (level > 0) {
                                 if (!notifiedCoins[row.ticker] || notifiedCoins[row.ticker] < level) {
@@ -328,7 +380,7 @@
 
                         htmlBuffer += `
                             <tr class="${trClass}">
-                                <td>${row.ticker}</td>
+                                <td>${aiDot}${row.ticker}</td>
                                 <td>${row.spread || "-"}</td>
                                 <td>${row.low || "-"}</td>
                                 <td>${row.high || "-"}</td>
