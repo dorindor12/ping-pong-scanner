@@ -165,7 +165,6 @@
                 if (soundEnabled && !audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const timestamp = new Date().getTime();
                 
-                // Выбираем правильный эндпоинт
                 let targetEndpoint = "/ping-pong";
                 if (currentMode === "densities") targetEndpoint = "/densities";
                 if (currentMode === "arbitrage") targetEndpoint = "/arbitrage";
@@ -224,14 +223,30 @@
                 // РЕНДЕР: АРБИТРАЖ
                 else if (currentMode === "arbitrage") {
                     title.innerText = `Базисный Арбитраж: Спот vs Фьючерс (${currentExchange.toUpperCase()})`;
-                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Цена (Спот)</th><th>Цена (Фьючерс)</th><th>Разница (Спред)</th><th>Рекомендуемое действие</th></tr>`;
+                    // ЗДЕСЬ ДОБАВЛЕНА КОЛОНКА "ДАВЛЕНИЕ СТАКАНА"
+                    tableHead.innerHTML = `<tr><th>Тикер</th><th>Цена (Спот)</th><th>Цена (Фьючерс)</th><th>Разница (Спред)</th><th>Рекомендуемое действие</th><th>Давление (Спот)</th></tr>`;
+                    
                     data.forEach(row => {
-                        // Подсвечиваем ячейку со спредом желтым, если разрыв большой
                         let spreadHtml = row.spread;
                         if (row.raw_spread && row.raw_spread > 1.5) {
                             spreadHtml = `<span style="color:#ffa500; font-weight:bold; font-size: 1.1em;">${row.spread}</span>`;
                         } else if (row.raw_spread && row.raw_spread > 0) {
                             spreadHtml = `<span style="color:#00ffcc; font-weight:bold;">${row.spread}</span>`;
+                        }
+
+                        // Отрисовка шкалы перекоса стакана для Арбитража
+                        let imbalanceHtml = "-"; 
+                        if (row.imbalance && row.imbalance !== "-") {
+                            let bidPct = parseInt(row.imbalance);
+                            let askPct = 100 - bidPct;
+                            imbalanceHtml = `
+                                <div style="width: 100px; height: 10px; background: #ff4444; border-radius: 5px; overflow: hidden; display: flex; margin-bottom: 5px;">
+                                    <div style="width: ${bidPct}%; background: #00ffcc; transition: width 0.3s;"></div>
+                                </div>
+                                <div style="font-size: 11px; color: #aaa; text-align: center; width: 100px;">
+                                    <span style="color: #00ffcc;">${bidPct}%</span> | <span style="color: #ff4444;">${askPct}%</span>
+                                </div>
+                            `;
                         }
                         
                         htmlBuffer += `
@@ -241,6 +256,7 @@
                                 <td>${row.swap_price || "-"}</td>
                                 <td>${spreadHtml}</td>
                                 <td>${row.action || "-"}</td>
+                                <td>${imbalanceHtml}</td>
                             </tr>
                         `;
                     });
