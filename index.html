@@ -6,15 +6,22 @@
     <title>Crypto Scanner | Trading Tools</title>
     <style>
         body { background-color: #121212; color: #ffffff; font-family: 'Courier New', Courier, monospace; margin: 0; padding: 20px; }
-        .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
         .tabs { display: flex; gap: 15px; }
         .tab { padding: 10px 20px; background-color: #222; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .tab.active { background-color: #00ffcc; color: #000; }
         .tab:hover:not(.active) { background-color: #333; }
-        .controls { display: flex; align-items: center; gap: 20px; }
+        .controls { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
         .exchange-selector { display: flex; background: #1a1a1a; border-radius: 5px; overflow: hidden; border: 1px solid #333; }
-        .ex-btn { padding: 8px 20px; background: transparent; color: #888; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; }
+        .ex-btn { padding: 8px 15px; background: transparent; color: #888; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; }
         .ex-btn.active { background-color: #00ffcc; color: #000; }
+        
+        /* Стили для панели настроек */
+        .settings-panel { display: flex; align-items: center; gap: 8px; background: #1a1a1a; padding: 5px 15px; border-radius: 5px; border: 1px solid #333; }
+        .settings-panel label { font-size: 12px; color: #aaa; font-weight: bold; }
+        .settings-panel input { width: 60px; background: #222; color: #00ffcc; border: 1px solid #555; border-radius: 3px; padding: 4px; text-align: center; font-family: monospace; font-weight: bold; outline: none;}
+        .settings-panel input:focus { border-color: #00ffcc; }
+
         .sound-btn { background-color: #333; color: #fff; border: 1px solid #555; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .sound-btn.on { background-color: #00ffcc; color: #000; border-color: #00ffcc; }
         table { width: 100%; border-collapse: collapse; }
@@ -55,6 +62,15 @@
                 <button class="ex-btn" id="ex-bitget" onclick="setExchange('bitget')">BITGET</button>
                 <button class="ex-btn" id="ex-mexc" onclick="setExchange('mexc')">MEXC</button>
             </div>
+            
+            <div class="settings-panel">
+                <label title="От какой суммы считать спред в Пинг-Понге">Пинг-Понг ($):</label>
+                <input type="number" id="setting-pp" value="300" onchange="applySettings()">
+                
+                <label style="margin-left: 10px;" title="От какой суммы выводить стены в Плотностях">Плотность ($):</label>
+                <input type="number" id="setting-den" value="5000" onchange="applySettings()">
+            </div>
+
             <button id="sound-toggle" class="sound-btn">🔕 Звук ВКЛ</button>
             <div class="status" id="api-status">STATUS: [CONNECTING...]</div>
         </div>
@@ -87,6 +103,14 @@
                 document.getElementById('data-table').innerHTML = '<tr><td colspan="8">Загрузка данных биржи...</td></tr>';
                 updateData(); 
             } else { document.getElementById('search-result').innerHTML = ''; }
+        }
+
+        // Функция применения настроек
+        function applySettings() {
+            const statusText = document.getElementById('api-status');
+            statusText.innerText = "STATUS: [APPLYING SETTINGS...]"; 
+            statusText.style.color = "yellow";
+            updateData(); // Принудительно дергаем сервер, чтобы он сохранил новые цифры
         }
 
         document.getElementById('tab-pingpong').addEventListener('click', (e) => switchTab('pingpong', e.target));
@@ -165,11 +189,16 @@
                 if (soundEnabled && !audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const timestamp = new Date().getTime();
                 
+                // Считываем значения из новых инпутов
+                const minPp = document.getElementById('setting-pp').value;
+                const minDen = document.getElementById('setting-den').value;
+
                 let targetEndpoint = "/ping-pong";
                 if (currentMode === "densities") targetEndpoint = "/densities";
                 if (currentMode === "arbitrage") targetEndpoint = "/arbitrage";
 
-                const response = await fetch(`${BASE_URL}${targetEndpoint}?exchange=${currentExchange}&t=${timestamp}`);
+                // Передаем настройки серверу в каждом запросе!
+                const response = await fetch(`${BASE_URL}${targetEndpoint}?exchange=${currentExchange}&min_pp=${minPp}&min_den=${minDen}&t=${timestamp}`);
                 if (!response.ok) throw new Error("Сервер не ответил");
                 
                 const data = await response.json();
@@ -178,7 +207,6 @@
                 const tableBody = document.getElementById('data-table');
                 let htmlBuffer = ""; 
                 
-                // РЕНДЕР: ПИНГ-ПОНГ
                 if (currentMode === "pingpong") {
                     title.innerText = `Активные ситуации "Ping-Pong" (${currentExchange.toUpperCase()})`;
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Спред (%)</th><th>Покупка (Низ)</th><th>Продажа (Верх)</th><th>Сделок (1м/5м/15м)</th><th>Объем $ (1м/5м/15м)</th><th>Стенки ($)</th><th>Давление стакана</th></tr>`;
@@ -208,7 +236,6 @@
                     if (highestAlertLevel > 0) playAlertSound(highestAlertLevel);
                     for (let coin in notifiedCoins) { if (!currentScanCoins.has(coin)) delete notifiedCoins[coin]; }
                 } 
-                // РЕНДЕР: ПЛОТНОСТИ
                 else if (currentMode === "densities") {
                     title.innerText = `Крупные плотности в стакане (${currentExchange.toUpperCase()})`;
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Тип</th><th>Цена</th><th>Объем ($)</th><th>Расстояние до цены</th></tr>`;
@@ -220,10 +247,8 @@
                     });
                     tableBody.innerHTML = htmlBuffer; 
                 }
-                // РЕНДЕР: АРБИТРАЖ
                 else if (currentMode === "arbitrage") {
                     title.innerText = `Базисный Арбитраж: Спот vs Фьючерс (${currentExchange.toUpperCase()})`;
-                    // ЗДЕСЬ ДОБАВЛЕНА КОЛОНКА "ДАВЛЕНИЕ СТАКАНА"
                     tableHead.innerHTML = `<tr><th>Тикер</th><th>Цена (Спот)</th><th>Цена (Фьючерс)</th><th>Разница (Спред)</th><th>Рекомендуемое действие</th><th>Давление (Спот)</th></tr>`;
                     
                     data.forEach(row => {
@@ -234,7 +259,6 @@
                             spreadHtml = `<span style="color:#00ffcc; font-weight:bold;">${row.spread}</span>`;
                         }
 
-                        // Отрисовка шкалы перекоса стакана для Арбитража
                         let imbalanceHtml = "-"; 
                         if (row.imbalance && row.imbalance !== "-") {
                             let bidPct = parseInt(row.imbalance);
